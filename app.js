@@ -16,24 +16,30 @@ function firstMatch(text,patterns){for(const re of patterns){const m=text.match(
 function normalizePlateCandidate(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 function isValidPlate(s){return /^(?:[A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/.test(s)}
 function findPlate(text){
- const t=clean(text);
- const platePattern='([A-Z]{3}[\\s-]*[0-9][\\s-]*(?:[A-Z0-9][\\s-]*){3})';
- const patterns=[
-  new RegExp('PLACA\\s*[:\\-]?\\s*'+platePattern+'(?=\\s|$|RNTRC)','i'),
-  new RegExp('PLACA\\s+RNTRC\\s*[:\\-]?\\s*'+platePattern,'i'),
-  new RegExp(platePattern+'\\s+RNTRC','i')
+ const raw=String(text||'');
+ const t=clean(raw);
+ // Primeiro procura imediatamente após o rótulo PLACA, isolando o trecho até RNTRC.
+ // Isso evita que o próprio texto "RNTRC" ou números de outros campos sejam incorporados.
+ const labelMatches=[...t.matchAll(/PLACA\b/gi)];
+ for(const lm of labelMatches){
+   const start=lm.index+lm[0].length;
+   const segment=t.slice(start,start+100).split(/\bRNTRC\b/i)[0];
+   const compact=normalizePlateCandidate(segment);
+   const candidates=[];
+   for(let i=0;i<=compact.length-7;i++) candidates.push(compact.slice(i,i+7));
+   for(const p of candidates){if(isValidPlate(p))return p;}
+ }
+ // Casos em que RNTRC aparece entre o rótulo e a placa.
+ const beforePatterns=[
+   /PLACA\s+RNTRC\s*[:\-]?\s*([^\n]{0,80})/i,
+   /([^\n]{0,80})\s+RNTRC\s+PLACA/i
  ];
- for(const re of patterns){const m=t.match(re);if(m){const p=normalizePlateCandidate(m[1]);if(isValidPlate(p))return p;}}
- // Handles PDF extraction that splits the seven characters into separate text items.
- const compact=t.replace(/\s+/g,' ');
- const label=/PLACA/.exec(compact);
- if(label){
-   const nearby=compact.slice(label.index,label.index+140);
-   const chars=nearby.match(/[A-Z0-9]/gi)||[];
-   for(let i=0;i<=chars.length-7;i++){
-     const p=chars.slice(i,i+7).join('').toUpperCase();
-     if(isValidPlate(p))return p;
-   }
+ for(const re of beforePatterns){const m=t.match(re);if(m){const compact=normalizePlateCandidate(m[1]);for(let i=0;i<=compact.length-7;i++){const p=compact.slice(i,i+7);if(isValidPlate(p))return p;}}}
+ // Busca genérica apenas por candidatos de 7 caracteres, nunca aceitando 6.
+ const tokens=t.split(/\s+/).map(normalizePlateCandidate).filter(Boolean);
+ for(let i=0;i<tokens.length;i++){
+   const joined=tokens.slice(i,i+4).join('');
+   for(let j=0;j<=Math.min(10,joined.length-7);j++){const p=joined.slice(j,j+7);if(isValidPlate(p))return p;}
  }
  return '';
 }
