@@ -5,33 +5,59 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 const DEFAULT_CONFIG={name:'Conversor de VPOs',subtitle:'VPO → Excel',color:'#c62828',footer:'Configuração personalizável'};
 const config={...DEFAULT_CONFIG,...JSON.parse(localStorage.getItem('vpo-config')||'{}')};
 let rows=[];
-
 const $=s=>document.querySelector(s);
+
 function applyConfig(){document.documentElement.style.setProperty('--primary',config.color);$('#appName').textContent=config.name;$('#appSubtitle').textContent=config.subtitle;$('#footerName').textContent=config.footer;$('#brandMark').textContent=(config.name.match(/\b\w/g)||['C','V']).slice(0,2).join('').toUpperCase()}
 applyConfig();
-
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500)}
 function progress(n,text){$('#progressBar').style.width=n+'%';$('#progressText').textContent=n+'%';$('#progressDetail').textContent=text}
-function clean(s){return s.replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ').trim()}
-function match(text,re){const m=text.match(re);return m?clean(m[1]):''}
+function clean(s){return String(s||'').replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ').trim()}
+function normalized(s){return clean(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()}
 function money(v){const n=Number(String(v).replace(/\./g,'').replace(',','.'));return Number.isFinite(n)?n:0}
-function dateBR(raw){const m=raw.match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?`${m[1]}/${m[2]}/${m[3]}`:raw}
+function dateBR(raw){const m=String(raw||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?`${m[1]}/${m[2]}/${m[3]}`:''}
+function firstMatch(text,patterns){for(const re of patterns){const m=text.match(re);if(m)return clean(m[1]);}return ''}
+
 function parseVpo(text,fileName){
-  const value=money(match(text,/TOTAL\s+VALE-PED[ÍI]GIO\s*\(R\$\)\s*\n?\s*[^\n]*?\s+([\d.,]+)/i) || match(text,/TOTAL\s+VALE-PED[ÍI]GIO[^\n]*?([\d.,]+)\s*$/im));
-  const dateRaw=match(text,/DATA DE EMISS[ÃA]O\s+DATA[^\n]*\n\s*(\d{2}\/\d{2}\/\d{4})/i) || match(text,/DATA DE EMISS[ÃA]O[^\n]*\n\s*(\d{2}\/\d{2}\/\d{4})/i);
-  const vale=match(text,/Vale-Ped[áa]gio:\s*([0-9]+\/[0-9]+)/i);
-  const id=match(text,/ID Viagem:\s*([0-9]+)/i);
-  const placa=match(text,/PLACA\s+RNTRC\s*\n\s*([A-Z0-9-]{6,8})/i);
-  const antt=match(text,/N[úu]mero do Comprovante ANTT\s*\n\s*([0-9]{15,25})/i);
-  const missing=[]; if(!dateRaw)missing.push('data');if(!vale)missing.push('vale');if(!id)missing.push('ID');if(!antt)missing.push('ANTT');if(!placa)missing.push('placa');if(!value)missing.push('total');
-  return {"DATA DE EMISSÃO":dateBR(dateRaw),"VALE PEDÁGIO":vale,"ID VIAGEM":id,"NÚMERO COMPROVANTE ANTT":antt,"PLACA":placa.toUpperCase(),"TOTAL VALE-PEDÁGIO":value,"ARQUIVO":fileName,_missing:missing};
+  // pdf.js can return text items without the original line breaks, so extraction
+  // intentionally uses whitespace-tolerant patterns and document labels as anchors.
+  const t=clean(text).replace(/\s+/g,' ');
+  const tn=normalized(t);
+
+  const vale=firstMatch(t,[/Vale-Ped[áa]gio\s*:\s*([0-9]+\s*\/\s*[0-9]+)/i]);
+  const id=firstMatch(t,[/ID\s+Viagem\s*:\s*(\d+)/i]);
+  const dateRaw=firstMatch(t,[/DATA\s+DE\s+EMISS[ÃA]O\s+DATA\s+DE\s+[ÍI]NICIO\s+DATA\s+DE\s+T[EÉ]RMINO\s+S[EÉ]RIE\s+N[ÚU]MERO\s+(\d{2}\/\d{2}\/\d{4})/i,/DATA\s+DE\s+EMISS[ÃA]O[^0-9]*(\d{2}\/\d{2}\/\d{4})/i]);
+  const placa=firstMatch(t,[/PLACA\s+RNTRC\s+([A-Z0-9-]{6,8})/i]);
+  const antt=firstMatch(t,[/N[ÚU]MERO\s+DO\s+COMPROVANTE\s+ANTT\s+(\d{15,25})/i]);
+
+  // After the TOTAL VALE-PEDÁGIO header, the PDF places the route/category
+  // followed by the amount. Capture the first monetary value in that section.
+  let total=0;
+  const totalAnchor=tn.indexOf('TOTAL VALE-PEDAGIO');
+  if(totalAnchor>=0){
+    const section=t.slice(totalAnchor,totalAnchor+500);
+    const m=section.match(/(\d{1,3}(?:\.\d{3})*,\d{2})(?!.*\d{1,3}(?:\.\d{3})*,\d{2})/);
+    if(m) total=money(m[1]);
+  }
+  if(!total){
+    const candidates=[...t.matchAll(/\b(\d{1,3}(?:\.\d{3})*,\d{2})\b/g)].map(m=>money(m[1]));
+    total=candidates.find(v=>v>0&&v<100000)||0;
+  }
+
+  const missing=[];
+  if(!dateRaw)missing.push('data');
+  if(!vale)missing.push('vale');
+  if(!id)missing.push('ID');
+  if(!antt)missing.push('ANTT');
+  if(!placa)missing.push('placa');
+  if(!total)missing.push('total');
+  return {'DATA DE EMISSÃO':dateBR(dateRaw),'VALE PEDÁGIO':vale.replace(/\s/g,''),'ID VIAGEM':id,'NÚMERO COMPROVANTE ANTT':antt,'PLACA':placa.toUpperCase(),'TOTAL VALE-PEDÁGIO':total,'ARQUIVO':fileName,_missing:missing};
 }
+
 async function pdfText(blob){const data=new Uint8Array(await blob.arrayBuffer());const pdf=await pdfjsLib.getDocument({data}).promise;let text='';for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p);const c=await page.getTextContent();text+=c.items.map(i=>i.str).join(' ')+'\n';}return text}
 async function collectFiles(files){const out=[];for(const f of files){if(f.name.toLowerCase().endsWith('.pdf'))out.push(f);else if(f.name.toLowerCase().endsWith('.zip')){const zip=await JSZip.loadAsync(f);for(const [name,e] of Object.entries(zip.files)){if(!e.dir&&name.toLowerCase().endsWith('.pdf'))out.push(new File([await e.async('blob')],name,{type:'application/pdf'}));}}}return out}
-function render(){const body=$('#resultsBody');body.innerHTML='';rows.forEach((r,i)=>{const tr=document.createElement('tr');const vals=['DATA DE EMISSÃO','VALE PEDÁGIO','ID VIAGEM','NÚMERO COMPROVANTE ANTT','PLACA'];vals.forEach(k=>{const td=document.createElement('td');td.textContent=r[k]||'—';td.contentEditable='true';td.dataset.row=i;td.dataset.key=k;td.addEventListener('blur',e=>{rows[i][k]=e.target.textContent.trim()});tr.appendChild(td)});const td=document.createElement('td');td.textContent=r['TOTAL VALE-PEDÁGIO']?r['TOTAL VALE-PEDÁGIO'].toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';td.contentEditable='true';td.dataset.row=i;td.dataset.key='TOTAL VALE-PEDÁGIO';td.addEventListener('blur',e=>{rows[i][td.dataset.key]=money(e.target.textContent)});tr.appendChild(td);const st=document.createElement('td');st.textContent=r._missing.length?'⚠ '+r._missing.join(', '):'✓ OK';st.className=r._missing.length?'status-warn':'status-ok';tr.appendChild(st);body.appendChild(tr)});updateStats()}
+function render(){const body=$('#resultsBody');body.innerHTML='';rows.forEach((r,i)=>{const tr=document.createElement('tr');const vals=['DATA DE EMISSÃO','VALE PEDÁGIO','ID VIAGEM','NÚMERO COMPROVANTE ANTT','PLACA'];vals.forEach(k=>{const td=document.createElement('td');td.textContent=r[k]||'—';td.contentEditable='true';td.dataset.row=i;td.dataset.key=k;td.addEventListener('blur',e=>{rows[i][k]=e.target.textContent.trim();updateStats()});tr.appendChild(td)});const td=document.createElement('td');td.textContent=r['TOTAL VALE-PEDÁGIO']?r['TOTAL VALE-PEDÁGIO'].toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';td.contentEditable='true';td.dataset.row=i;td.dataset.key='TOTAL VALE-PEDÁGIO';td.addEventListener('blur',e=>{rows[i][td.dataset.key]=money(e.target.textContent);updateStats()});tr.appendChild(td);const st=document.createElement('td');st.textContent=r._missing.length?'⚠ '+r._missing.join(', '):'✓ OK';st.className=r._missing.length?'status-warn':'status-ok';tr.appendChild(st);body.appendChild(tr)}) ;updateStats()}
 function updateStats(){const ok=rows.filter(r=>!r._missing.length).length;const warn=rows.length-ok;const total=rows.reduce((a,r)=>a+(r['TOTAL VALE-PEDÁGIO']||0),0);$('#statTotal').textContent=rows.length;$('#statOk').textContent=ok;$('#statWarn').textContent=warn;$('#statValue').textContent=total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
 async function processFiles(files){if(!files.length)return toast('Selecione pelo menos um PDF ou ZIP.');$('#progressSection').classList.remove('hidden');$('#resultsSection').classList.add('hidden');rows=[];try{progress(5,'Abrindo arquivos...');const pdfs=await collectFiles(files);if(!pdfs.length)throw new Error('Nenhum PDF encontrado.');for(let i=0;i<pdfs.length;i++){progress(Math.round(10+(i/pdfs.length)*85),`Lendo ${i+1} de ${pdfs.length}: ${pdfs[i].name}`);const text=await pdfText(pdfs[i]);rows.push(parseVpo(text,pdfs[i].name));}progress(100,'Processamento concluído.');render();$('#resultsSection').classList.remove('hidden');toast(`${rows.length} VPO(s) processada(s).`)}catch(e){console.error(e);toast('Não foi possível processar os arquivos: '+e.message)}finally{setTimeout(()=>$('#progressSection').classList.add('hidden'),700)}}
-
 $('#chooseBtn').onclick=()=>$('#fileInput').click();$('#dropzone').onclick=e=>{if(e.target.closest('button'))return;$('#fileInput').click()};$('#fileInput').onchange=e=>processFiles([...e.target.files]);
 ['dragenter','dragover'].forEach(ev=>$('#dropzone').addEventListener(ev,e=>{e.preventDefault();$('#dropzone').classList.add('dragover')}));['dragleave','drop'].forEach(ev=>$('#dropzone').addEventListener(ev,e=>{e.preventDefault();$('#dropzone').classList.remove('dragover')}));$('#dropzone').addEventListener('drop',e=>processFiles([...e.dataTransfer.files]));
 $('#clearBtn').onclick=()=>{rows=[];$('#resultsSection').classList.add('hidden');$('#fileInput').value=''};
