@@ -1,20 +1,34 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/png" href="LOGOTIPO-COSTALOG-versão-2020.png" />
-  <link rel="apple-touch-icon" href="LOGOTIPO-COSTALOG-versão-2020.png" />
-  <title>Costalog • Conversor de VPOs</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Costalog • Conversor de VPOs</title>
+<link rel="icon" type="image/png" href="LOGOTIPO-COSTALOG-versão-2020.png">
+<link rel="apple-touch-icon" href="LOGOTIPO-COSTALOG-versão-2020.png">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="app"></div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-  <script src="pdf-fix.js"></script>
-  <script type="module" src="app.js"></script>
-  <script src="pdf-report.js"></script>
-</body>
-</html>
+<header class="topbar"><div class="brand"><img id="brandLogo" src="LOGOTIPO-COSTALOG-versão-2020.png" alt="Costalog - A Logística Ideal"><div><div id="appName">Costalog</div><div id="appSubtitle">Conversor de VPOs • VPO → Excel</div></div></div></header>
+<main class="container">
+<section class="hero"><h1 id="heroTitle">Conversor de VPOs em Excel</h1><p id="heroText">Anexe um ou vários PDFs, ou um ZIP com as VPOs. Os dados são extraídos automaticamente no seu navegador.</p></section>
+<section id="dropzone" class="dropzone"><input id="fileInput" type="file" accept=".pdf,.zip" multiple hidden><button id="chooseBtn" class="primary">Selecionar PDFs ou ZIP</button><div>ou arraste os arquivos para esta área</div></section>
+<section id="progressSection" class="progress-section hidden"><div class="progress-head"><span id="progressDetail">Processando...</span><span id="progressText">0%</span></div><div class="progress-track"><div id="progressBar" class="progress-bar"></div></div></section>
+<section id="resultsSection" class="hidden">
+<div class="stats"><div><span>VPOs</span><strong id="statTotal">0</strong></div><div><span>OK</span><strong id="statOk">0</strong></div><div><span>Revisar</span><strong id="statWarn">0</strong></div><div><span>Valor total</span><strong id="statValue">R$ 0,00</strong></div></div>
+<div id="validationMessage" class="validation-message"></div><div id="duplicateMessage" class="validation-message duplicate hidden"></div>
+<div class="toolbar"><button id="filterAllBtn" class="active">Todos</button><button id="filterWarnBtn">Revisar</button><span class="spacer"></span><button id="deleteSelectedBtn" disabled>Excluir selecionados</button><button id="copySelectedBtn" disabled>Copiar selecionados</button><button id="clearBtn">Limpar</button><button id="downloadBtn">Baixar Excel</button><button id="pdfBtn">Relatório PDF</button></div>
+<div id="selectionMessage" class="selection-message hidden"></div>
+<div class="table-wrap"><table><thead><tr><th class="select-cell"><input id="selectAll" type="checkbox"></th><th class="sortable" data-sort="DATA DE EMISSÃO">DATA DE EMISSÃO <span class="sort-indicator">↕</span></th><th>VALE PEDÁGIO</th><th class="sortable" data-sort="ID VIAGEM">ID VIAGEM <span class="sort-indicator">↕</span></th><th>NÚMERO COMPROVANTE ANTT</th><th class="sortable" data-sort="PLACA">PLACA <span class="sort-indicator">↕</span></th><th class="sortable" data-sort="TOTAL VALE-PEDÁGIO">TOTAL VALE-PEDÁGIO <span class="sort-indicator">↕</span></th><th>STATUS</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+</section>
+</main>
+<footer><span id="footerCompany">Costalog</span> • <span id="footerName">A Logística Ideal</span></footer>
+<div id="toast" class="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+<script src="pdf-fix.js"></script>
+<script src="pdf-report.js"></script>
+<script type="module" src="app.js"></script>
+</body></html>
