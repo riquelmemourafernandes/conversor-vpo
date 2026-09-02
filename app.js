@@ -14,20 +14,26 @@ function money(v){const n=Number(String(v??'').replace(/R\$\s*/i,'').replace(/\.
 function dateBR(raw){const m=String(raw||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?`${m[1]}/${m[2]}/${m[3]}`:''}
 function firstMatch(text,patterns){for(const re of patterns){const m=text.match(re);if(m)return clean(m[1]);}return ''}
 function normalizePlateCandidate(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
-function isValidPlate(s){return /^[A-Z]{3}[0-9][A-Z0-9][0-9]$/.test(s)}
+function isValidPlate(s){return /^(?:[A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$/.test(s)}
 function findPlate(text){
- const t=clean(text); const lines=t.split(/\s+/);
+ const t=clean(text);
+ const platePattern='([A-Z]{3}[\\s-]*[0-9][\\s-]*(?:[A-Z0-9][\\s-]*){3})';
  const patterns=[
-  /PLACA\s*[:\-]?\s*([A-Z]{3}[\s-]*[0-9][\s-]*[A-Z0-9][\s-]*[0-9])(?=\s|$|RNTRC)/i,
-  /PLACA\s+RNTRC\s*[:\-]?\s*([A-Z]{3}[\s-]*[0-9][\s-]*[A-Z0-9][\s-]*[0-9])/i,
-  /([A-Z]{3}[\s-]*[0-9][\s-]*[A-Z0-9][\s-]*[0-9])\s+RNTRC/i
+  new RegExp('PLACA\\s*[:\\-]?\\s*'+platePattern+'(?=\\s|$|RNTRC)','i'),
+  new RegExp('PLACA\\s+RNTRC\\s*[:\\-]?\\s*'+platePattern,'i'),
+  new RegExp(platePattern+'\\s+RNTRC','i')
  ];
  for(const re of patterns){const m=t.match(re);if(m){const p=normalizePlateCandidate(m[1]);if(isValidPlate(p))return p;}}
  // Handles PDF extraction that splits the seven characters into separate text items.
  const compact=t.replace(/\s+/g,' ');
  const label=/PLACA/.exec(compact);
- if(label){const nearby=compact.slice(label.index,label.index+120);const chars=nearby.match(/[A-Z0-9]/gi)||[];
-   for(let i=0;i<=chars.length-7;i++){const p=chars.slice(i,i+7).join('').toUpperCase();if(isValidPlate(p))return p;}
+ if(label){
+   const nearby=compact.slice(label.index,label.index+140);
+   const chars=nearby.match(/[A-Z0-9]/gi)||[];
+   for(let i=0;i<=chars.length-7;i++){
+     const p=chars.slice(i,i+7).join('').toUpperCase();
+     if(isValidPlate(p))return p;
+   }
  }
  return '';
 }
