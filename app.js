@@ -13,77 +13,38 @@ function normalized(s){return clean(s).normalize('NFD').replace(/[\u0300-\u036f]
 function money(v){const n=Number(String(v??'').replace(/R\$\s*/i,'').replace(/\./g,'').replace(',','.'));return Number.isFinite(n)?n:0}
 function dateBR(raw){const m=String(raw||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?`${m[1]}/${m[2]}/${m[3]}`:''}
 function firstMatch(text,patterns){for(const re of patterns){const m=text.match(re);if(m)return clean(m[1]);}return ''}
-
+function normalizePlateCandidate(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
+function isValidPlate(s){return /^[A-Z]{3}[0-9][A-Z0-9][0-9]$/.test(s)}
+function findPlate(text){
+ const t=clean(text); const lines=t.split(/\s+/);
+ const patterns=[
+  /PLACA\s*[:\-]?\s*([A-Z]{3}[\s-]*[0-9][\s-]*[A-Z0-9][\s-]*[0-9])(?=\s|$|RNTRC)/i,
+  /PLACA\s+RNTRC\s*[:\-]?\s*([A-Z]{3}[\s-]*[0-9][\s-]*[A-Z0-9][\s-]*[0-9])/i,
+  /([A-Z]{3}[\s-]*[0-9][\s-]*[A-Z0-9][\s-]*[0-9])\s+RNTRC/i
+ ];
+ for(const re of patterns){const m=t.match(re);if(m){const p=normalizePlateCandidate(m[1]);if(isValidPlate(p))return p;}}
+ // Handles PDF extraction that splits the seven characters into separate text items.
+ const compact=t.replace(/\s+/g,' ');
+ const label=/PLACA/.exec(compact);
+ if(label){const nearby=compact.slice(label.index,label.index+120);const chars=nearby.match(/[A-Z0-9]/gi)||[];
+   for(let i=0;i<=chars.length-7;i++){const p=chars.slice(i,i+7).join('').toUpperCase();if(isValidPlate(p))return p;}
+ }
+ return '';
+}
 function parseVpo(text,fileName){
- const raw=String(text||'');
- const t=clean(raw).replace(/\s+/g,' ');
- const u=normalized(t);
- const lines=raw.split(/\r?\n/).map(clean).filter(Boolean);
+ const raw=String(text||''); const t=clean(raw).replace(/\s+/g,' '); const u=normalized(t);
  const vale=firstMatch(t,[/VALE[-\s]*PED[ÁA]GIO\s*:\s*(\d+\s*\/\s*\d+)/i]);
  const id=firstMatch(t,[/ID\s+VIAGEM\s*:\s*(\d+)/i]);
  const dateRaw=firstMatch(t,[/DATA\s+DE\s+EMISS[ÃA]O[\s\S]{0,250}?(\d{2}\/\d{2}\/\d{4})/i]);
-
- // Placa: VPOs may render PLACA + value + RNTRC, or PLACA + RNTRC + value.
- let placa=firstMatch(t,[
-   /PLACA\s*[:\-]?\s*([A-Z]{3}[- ]?[0-9][A-Z0-9][0-9])\s+RNTRC/i,
-   /PLACA\s+RNTRC\s*[:\-]?\s*([A-Z]{3}[- ]?[0-9][A-Z0-9][0-9])/i,
-   /PLACA\s*[:\-]?\s*([A-Z0-9-]{7,8})/i
- ]);
- if(!placa){
-   for(let i=0;i<lines.length;i++){
-     if(normalized(lines[i]).includes('PLACA')){
-       const nearby=lines.slice(Math.max(0,i-2),Math.min(lines.length,i+5)).join(' ');
-       placa=firstMatch(nearby,[/PLACA\s*[:\-]?\s*([A-Z]{3}[- ]?[0-9][A-Z0-9][0-9])/i,/([A-Z]{3}[- ]?[0-9][A-Z0-9][0-9])\s+RNTRC/i]);
-       if(placa)break;
-     }
-   }
- }
- placa=placa.replace(/[ -]/g,'').toUpperCase();
-
- // ANTT: accept number before the label (common PDF text-order issue), after it, or on a nearby line.
- let antt=firstMatch(t,[
-   /N[ÚU]MERO\s+DO\s+COMPROVANTE\s+ANTT\s*[:\-]?\s*(\d{18,25})/i,
-   /(\d{18,25})\s+N[ÚU]MERO\s+DO\s+COMPROVANTE\s+ANTT/i,
-   /COMPROVANTE\s+ANTT\s*[:\-]?\s*(\d{18,25})/i,
-   /ANTT\s*[:\-]?\s*(\d{18,25})/i
- ]);
- if(!antt){
-   for(let i=0;i<lines.length;i++){
-     if(normalized(lines[i]).includes('ANTT')){
-       const nearby=lines.slice(Math.max(0,i-3),Math.min(lines.length,i+4)).join(' ');
-       antt=firstMatch(nearby,[/(\d{18,25})/]);
-       if(antt)break;
-     }
-   }
- }
-
- let total=0;
- const pos=u.indexOf('TOTAL VALE-PEDAGIO');
- if(pos>=0){
-   const section=t.slice(pos,pos+300);
-   const vals=[...section.matchAll(/\b(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\b/g)].map(m=>money(m[1])).filter(v=>v>0);
-   if(vals.length)total=vals[vals.length-1];
- }
- if(!total){
-   const idx=lines.findIndex(x=>normalized(x).includes('TOTAL VALE-PEDAGIO'));
-   if(idx>=0){const nearby=lines.slice(idx,idx+10).join(' ');const vals=[...nearby.matchAll(/\b(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\b/g)].map(m=>money(m[1])).filter(v=>v>0);if(vals.length)total=vals[vals.length-1];}
- }
+ const placa=findPlate(raw);
+ let antt=firstMatch(t,[/N[ÚU]MERO\s+DO\s+COMPROVANTE\s+ANTT\s*[:\-]?\s*(\d{18,25})/i,/(\d{18,25})\s+N[ÚU]MERO\s+DO\s+COMPROVANTE\s+ANTT/i,/COMPROVANTE\s+ANTT\s*[:\-]?\s*(\d{18,25})/i,/ANTT\s*[:\-]?\s*(\d{18,25})/i]);
+ if(!antt){const m=t.match(/(\d{18,25})/);if(m)antt=m[1];}
+ let total=0; const pos=u.indexOf('TOTAL VALE-PEDAGIO');
+ if(pos>=0){const section=t.slice(pos,pos+300);const vals=[...section.matchAll(/\b(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\b/g)].map(m=>money(m[1])).filter(v=>v>0);if(vals.length)total=vals[vals.length-1];}
  const missing=[];if(!dateRaw)missing.push('data');if(!vale)missing.push('vale');if(!id)missing.push('ID');if(!antt)missing.push('ANTT');if(!placa)missing.push('placa');if(!total)missing.push('total');
  return {'DATA DE EMISSÃO':dateBR(dateRaw),'VALE PEDÁGIO':vale.replace(/\s/g,''),'ID VIAGEM':id,'NÚMERO COMPROVANTE ANTT':antt,'PLACA':placa,'TOTAL VALE-PEDÁGIO':total,'ARQUIVO':fileName,_missing:missing};
 }
-
-async function pdfText(blob){
- const data=new Uint8Array(await blob.arrayBuffer());const pdf=await pdfjsLib.getDocument({data}).promise;let pages=[];
- for(let p=1;p<=pdf.numPages;p++){
-   const page=await pdf.getPage(p);const c=await page.getTextContent();
-   // Preserve PDF reading order and line boundaries using item coordinates.
-   const items=(c.items||[]).map(i=>({s:i.str||'',x:i.transform?.[4]??0,y:i.transform?.[5]??0})).sort((a,b)=>b.y-a.y||a.x-b.x);
-   const lines=[];
-   for(const item of items){let line=lines.find(l=>Math.abs(l.y-item.y)<=3);if(!line){line={y:item.y,items:[]};lines.push(line)}line.items.push(item)}
-   lines.sort((a,b)=>b.y-a.y);pages.push(lines.map(l=>l.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')).join('\n'));
- }
- return pages.join('\n');
-}
+async function pdfText(blob){const data=new Uint8Array(await blob.arrayBuffer());const pdf=await pdfjsLib.getDocument({data}).promise;let pages=[];for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p);const c=await page.getTextContent();const items=(c.items||[]).map(i=>({s:i.str||'',x:i.transform?.[4]??0,y:i.transform?.[5]??0})).sort((a,b)=>b.y-a.y||a.x-b.x);const lines=[];for(const item of items){let line=lines.find(l=>Math.abs(l.y-item.y)<=3);if(!line){line={y:item.y,items:[]};lines.push(line)}line.items.push(item)}lines.sort((a,b)=>b.y-a.y);pages.push(lines.map(l=>l.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')).join('\n'))}return pages.join('\n')}
 async function collectFiles(files){const out=[];for(const f of files){if(f.name.toLowerCase().endsWith('.pdf'))out.push(f);else if(f.name.toLowerCase().endsWith('.zip')){const zip=await JSZip.loadAsync(f);for(const [name,e] of Object.entries(zip.files)){if(!e.dir&&name.toLowerCase().endsWith('.pdf'))out.push(new File([await e.async('blob')],name,{type:'application/pdf'}));}}}return out}
 function render(){const body=$('#resultsBody');body.innerHTML='';rows.forEach((r,i)=>{const tr=document.createElement('tr');['DATA DE EMISSÃO','VALE PEDÁGIO','ID VIAGEM','NÚMERO COMPROVANTE ANTT','PLACA'].forEach(k=>{const td=document.createElement('td');td.textContent=r[k]||'—';td.contentEditable='true';td.addEventListener('blur',e=>{rows[i][k]=e.target.textContent.trim();updateStats()});tr.appendChild(td)});const td=document.createElement('td');td.textContent=r['TOTAL VALE-PEDÁGIO']?r['TOTAL VALE-PEDÁGIO'].toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';td.contentEditable='true';td.addEventListener('blur',e=>{rows[i]['TOTAL VALE-PEDÁGIO']=money(e.target.textContent);updateStats()});tr.appendChild(td);const st=document.createElement('td');st.textContent=r._missing.length?'⚠ '+r._missing.join(', '):'✓ OK';st.className=r._missing.length?'status-warn':'status-ok';tr.appendChild(st);body.appendChild(tr)});updateStats()}
 function updateStats(){const ok=rows.filter(r=>!r._missing.length).length;const warn=rows.length-ok;const total=rows.reduce((a,r)=>a+(r['TOTAL VALE-PEDÁGIO']||0),0);$('#statTotal').textContent=rows.length;$('#statOk').textContent=ok;$('#statWarn').textContent=warn;$('#statValue').textContent=total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
