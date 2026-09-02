@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Conversor online de VPOs para Excel" />
+  <title>Conversor de VPOs</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" id="brandMark">CV</div>
+        <div><strong id="appName">Conversor de VPOs</strong><span id="appSubtitle">VPO → Excel</span></div>
+      </div>
+      <button class="ghost-btn" id="settingsBtn" type="button">⚙ Configurações</button>
+    </header>
+
+    <main>
+      <section class="hero">
+        <span class="eyebrow">PROCESSAMENTO ONLINE</span>
+        <h1>Converta suas VPOs em Excel</h1>
+        <p>Anexe um ou vários PDFs, ou um ZIP com as VPOs. Os dados são extraídos automaticamente no seu navegador.</p>
+      </section>
+
+      <section class="card upload-card">
+        <input id="fileInput" type="file" accept=".pdf,.zip,application/pdf,application/zip" multiple hidden />
+        <div id="dropzone" class="dropzone" tabindex="0">
+          <div class="upload-icon">↑</div>
+          <h2>Arraste os arquivos aqui</h2>
+          <p>ou clique para selecionar PDF(s) ou ZIP</p>
+          <button class="primary-btn" id="chooseBtn" type="button">Selecionar arquivos</button>
+          <small>O processamento acontece localmente no navegador.</small>
+        </div>
+      </section>
+
+      <section id="progressSection" class="card hidden">
+        <div class="section-title"><h2>Processando</h2><span id="progressText">0%</span></div>
+        <div class="progress"><div id="progressBar"></div></div>
+        <p id="progressDetail">Preparando arquivos...</p>
+      </section>
+
+      <section id="resultsSection" class="hidden">
+        <div class="stats">
+          <div class="stat card"><span>VPOs encontradas</span><strong id="statTotal">0</strong></div>
+          <div class="stat card"><span>Processadas</span><strong id="statOk">0</strong></div>
+          <div class="stat card"><span>Com alerta</span><strong id="statWarn">0</strong></div>
+          <div class="stat card"><span>Total pedágio</span><strong id="statValue">R$ 0,00</strong></div>
+        </div>
+
+        <div class="card table-card">
+          <div class="table-header">
+            <div><h2>Resultado</h2><p>Revise os dados antes de gerar o Excel.</p></div>
+            <div class="actions"><button id="clearBtn" class="secondary-btn">Limpar</button><button id="downloadBtn" class="primary-btn">Baixar Excel</button></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data de emissão</th><th>Vale-pedágio</th><th>ID viagem</th><th>Comprovante ANTT</th><th>Placa</th><th>Total vale-pedágio</th><th>Status</th></tr></thead>
+              <tbody id="resultsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>Conversor de VPOs • <span id="footerName">Configuração personalizável</span></footer>
+  </div>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="settings">
+      <div class="section-title"><h2>Personalização</h2><button value="cancel" class="icon-btn">×</button></div>
+      <label>Nome do sistema<input id="cfgName" type="text" /></label>
+      <label>Subtítulo<input id="cfgSubtitle" type="text" /></label>
+      <label>Cor principal<input id="cfgColor" type="color" /></label>
+      <label>Texto do rodapé<input id="cfgFooter" type="text" /></label>
+      <div class="dialog-actions"><button value="cancel" class="secondary-btn">Cancelar</button><button id="saveSettings" value="default" class="primary-btn">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
